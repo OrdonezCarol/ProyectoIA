@@ -1,68 +1,75 @@
 import streamlit as st
-import joblib
-import re
-import nltk
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+import numpy as np
+from PIL import Image
+import tensorflow as tf
 
-# Download stopwords from NLTK
-nltk.download('stopwords')
+# -------------------------------
+# 1. Configuración de la página
+# -------------------------------
+st.title("Uso de la IA para detectar cáncer de mama")
 
-# Function for text preprocessing
-def preprocess_text(text):
-    text = re.sub(r'http\S+', '', text)  # Remove URLs
-    text = re.sub(r'[^a-zA-Z\s]', '', text)  # Remove punctuation
-    text = text.lower()  # Convert to lowercase
-    text = text.split()  # Split into words
-    ps = PorterStemmer()
-    text = [ps.stem(word) for word in text if not word in set(stopwords.words('english'))]  # Remove stopwords and perform stemming
-    text = ' '.join(text)
-    return text
+# Problemática
+st.subheader("Problemática")
+st.write("""
+El cáncer de mama es una de las principales causas de mortalidad en mujeres a nivel mundial.
+La detección temprana mediante imágenes médicas, como ecografías, permite iniciar tratamientos oportunos que mejoran la supervivencia. 
+Sin embargo, el diagnóstico puede ser complejo y requiere experiencia especializada. 
+La Inteligencia Artificial (IA) aplicada en imágenes médicas emerge como una herramienta prometedora para apoyar a los profesionales de la salud, reduciendo errores y tiempos de diagnóstico. 
+Esta investigación busca entrenar modelos de IA con el dataset **BreastMNIST**, con el fin de desarrollar sistemas automáticos de apoyo a la decisión clínica en el tamizaje del cáncer de mama.
+""")
 
-# Load the vectorizer and models
-vectorizer = joblib.load('./model/tfidf_vectorizer.pkl')
-svm_model = joblib.load('./model/svm_model.pkl')
-nb_model = joblib.load('./model/naive_bayes_model.pkl')
-lr_model = joblib.load('./model/logistic_regression_model.pkl')
+# Objetivo
+st.subheader("Objetivo")
+st.write("""
+Desarrollar y evaluar un modelo de inteligencia artificial basado en imágenes médicas que permita detectar lesiones asociadas al cáncer de mama en ecografías, 
+como herramienta complementaria para la toma de decisiones clínicas.
+""")
 
-# App title
-st.title("Análisis de sentimientos de X (Tweet)")
-st.write("Ingresa el texto que deseas analizar:")
+# Metodología
+st.subheader("Metodología")
+st.write("""
+1. Recolección y preprocesamiento del dataset **BreastMNIST**.  
+2. Entrenamiento de un modelo de deep learning con redes convolucionales (CNN).  
+3. Evaluación del desempeño mediante métricas (precisión, sensibilidad, especificidad).  
+4. Implementación en una aplicación web interactiva con **Streamlit** para pruebas con imágenes nuevas.  
+""")
 
-# User input text
-input_text = st.text_area("Por ejemplo: 'Your research article is wonderful'.")
+# -------------------------------
+# 2. Cargar el modelo entrenado
+# -------------------------------
+#@st.cache_resource
+def load_model():
+    filename = "./model_carol/breastcancer.pickle"
+    model = pickle.load(open(filename, "rb"))
+    #model = tf.keras.models.load_model("breast_cancer_model.h5")  # Asegúrate de que el archivo esté en la carpeta
+    return model
 
-# Model selection
-st.write("Selecciona los modelos para el análisis:")
-use_nb = st.checkbox('Naive Bayes')
-use_svm = st.checkbox('SVM')
-use_lr = st.checkbox('Logistic Regression')
+model = load_model()
 
-if st.button("Analizar"):
-    if not input_text:
-        st.write("Please enter the text for analysis.")
-    elif not (use_nb or use_svm or use_lr):
-        st.write("Please select at least one model for analysis.")
+# -------------------------------
+# 3. Subir imagen y preprocesar
+# -------------------------------
+st.subheader("Prueba tu ecografía")
+uploaded_file = st.file_uploader("Sube tu ecografía de mama en formato JPG/PNG", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Mostrar imagen subida
+    image = Image.open(uploaded_file).convert("L")  # convertir a escala de grises
+    st.image(image, caption="Ecografía subida", use_column_width=True)
+
+    # Preprocesamiento según BreastMNIST (28x28 en escala de grises)
+    img_resized = image.resize((28, 28))
+    img_array = np.array(img_resized) / 255.0
+    img_array = np.expand_dims(img_array, axis=(0, -1))  # shape: (1, 28, 28, 1)
+
+    # -------------------------------
+    # 4. Predicción con el modelo
+    # -------------------------------
+    prediction = model.predict(img_array)
+    pred_class = (prediction > 0.5).astype("int")[0][0]
+
+    # Mostrar resultado
+    if pred_class == 1:
+        st.error("⚠️ Posible hallazgo compatible con cáncer de mama.")
     else:
-        # Process the input text
-        input_text_processed = preprocess_text(input_text)
-        input_text_vect = vectorizer.transform([input_text_processed])
-
-        st.write(f"**Input Text:** {input_text}")
-        
-        # Prediction using Naive Bayes
-        if use_nb:
-            nb_prediction = nb_model.predict(input_text_vect)[0]
-            nb_prob = nb_model.predict_proba(input_text_vect)[0]
-            st.write(f"**Naive Bayes Prediction:** {'Positive' if nb_prediction == 1 else 'Negative'} (Confidence: {nb_prob[nb_prediction]:.2f})")
-
-        # Prediction using SVM
-        if use_svm:
-            svm_prediction = svm_model.predict(input_text_vect)[0]
-            st.write(f"**SVM Prediction:** {'Positive' if svm_prediction == 1 else 'Negative'}")
-
-        # Prediction using Logistic Regression
-        if use_lr:
-            lr_prediction = lr_model.predict(input_text_vect)[0]
-            lr_prob = lr_model.predict_proba(input_text_vect)[0]
-            st.write(f"**Logistic Regression Prediction:** {'Positive' if lr_prediction == 1 else 'Negative'} (Confidence: {lr_prob[lr_prediction]:.2f})")
+        st.success("✅ No se detectaron hallazgos compatibles con cáncer de mama.")
