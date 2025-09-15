@@ -40,7 +40,7 @@ st.write("""
 #@st.cache_resource
 def load_model():
     filename = "./breastcancer.pickle"
-    model = pickle.load(open(filename, "breastcancer"))
+    model = pickle.load(open(filename, "breastcancer.pickle"))
     #model = tf.keras.models.load_model("breast_cancer_model.h5")  # Asegúrate de que el archivo esté en la carpeta
     return model
 
