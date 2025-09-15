@@ -2,3 +2,8 @@ pandas
 nltk
 scikit-learn
 joblib
+tensorflow-datasets
+streamlit
+tensorflow
+pillow
+numpy
